@@ -5,7 +5,7 @@ import requests # Nécessaire pour parler à N8N
 
 # --- CONFIGURATION N8N (C'est ici que tu colles tes liens !) ---
 # Mets tes liens N8N entre les guillemets.
-WEBHOOK_URL_DEVIS = "https://n8n.srv1159353.hstgr.cloud/webhook/c8f039e9-89af-4d1a-b378-8e77a0a348b0"
+WEBHOOK_URL_DEVIS = "https://n8n.srv1159353.hstgr.cloud/webhook-test/c8f039e9-89af-4d1a-b378-8e77a0a348b0"
 WEBHOOK_URL_VEILLE = "" # Ex: "https://ton-n8n.com/webhook/..."
 
 # --- CONFIGURATION DE LA PAGE ---
