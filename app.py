@@ -1,14 +1,9 @@
 import streamlit as st
 import pandas as pd
 import time
-import requests # Nécessaire pour parler à N8N
+import requests
 
-# --- CONFIGURATION N8N (C'est ici que tu colles tes liens !) ---
-# Mets tes liens N8N entre les guillemets.
-WEBHOOK_URL_DEVIS = "https://n8n.srv1159353.hstgr.cloud/webhook-test/c8f039e9-89af-4d1a-b378-8e77a0a348b0"
-WEBHOOK_URL_VEILLE = "" # Ex: "https://ton-n8n.com/webhook/..."
-
-# --- CONFIGURATION DE LA PAGE ---
+# --- 1. CONFIGURATION DE LA PAGE (Doit être la 1ère ligne) ---
 st.set_page_config(
     page_title="Excelia Agence - Portail IA",
     page_icon="🏗️",
@@ -16,239 +11,284 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- STYLE CSS PERSONNALISÉ ---
+# --- 2. LE "MAQUILLAGE" (CSS AVANCÉ) ---
+# C'est ici que la magie opère pour transformer le look standard
 st.markdown("""
     <style>
+    /* Import de la police Inter (plus moderne) */
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+    
+    html, body, [class*="css"]  {
+        font-family: 'Inter', sans-serif;
+    }
+
+    /* COULEURS EXCELIA (Violet) */
     :root {
-        --primary-color: #7c3aed;
-        --background-color: #ffffff;
-        --secondary-background-color: #f8fafc;
-        --text-color: #0f172a;
+        --primary: #7c3aed;
+        --primary-hover: #6d28d9;
+        --bg-light: #f8fafc;
     }
-    div.stButton > button {
-        background: linear-gradient(90deg, #7c3aed 0%, #4f46e5 100%);
-        color: white;
+
+    /* Enlever le vide en haut de page */
+    .block-container {
+        padding-top: 2rem !important;
+        padding-bottom: 2rem !important;
+    }
+
+    /* Style des BOUTONS (Dégradé Violet) */
+    .stButton > button {
+        background: linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%);
+        color: white !important;
         border: none;
-        padding: 0.5rem 1rem;
-        border-radius: 10px;
-        font-weight: bold;
+        padding: 0.6rem 1.2rem;
+        border-radius: 12px;
+        font-weight: 600;
+        letter-spacing: 0.5px;
         transition: all 0.3s ease;
+        box-shadow: 0 4px 6px -1px rgba(124, 58, 237, 0.3);
+        width: 100%;
     }
-    div.stButton > button:hover {
-        transform: scale(1.02);
-        box-shadow: 0 4px 14px 0 rgba(124, 58, 237, 0.39);
+    .stButton > button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 10px 15px -3px rgba(124, 58, 237, 0.4);
     }
-    h1, h2, h3 { font-family: 'Inter', sans-serif; font-weight: 700; }
-    h1 {
-        background: -webkit-linear-gradient(45deg, #7c3aed, #4f46e5);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-    }
+
+    /* Style des CARTES (Metrics) */
     div[data-testid="stMetric"] {
-        background-color: #f8fafc;
-        border: 1px solid #e2e8f0;
-        padding: 15px;
-        border-radius: 10px;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-    }
-    div[data-testid="stFileUploader"] {
-        border: 2px dashed #cbd5e1;
-        border-radius: 15px;
+        background-color: white;
         padding: 20px;
+        border-radius: 16px;
+        border: 1px solid #e2e8f0;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+        transition: transform 0.2s;
     }
-    /* Style pour les inputs */
-    .stTextInput > div > div > input {
+    div[data-testid="stMetric"]:hover {
+        transform: scale(1.02);
+        border-color: #7c3aed;
+    }
+    div[data-testid="stMetricLabel"] {
+        font-size: 0.9rem;
+        color: #64748b;
+        font-weight: 600;
+    }
+    div[data-testid="stMetricValue"] {
+        font-size: 1.8rem;
+        color: #0f172a;
+        font-weight: 700;
+    }
+
+    /* Zone d'UPLOAD plus jolie */
+    div[data-testid="stFileUploader"] section {
+        background-color: #f8fafc;
+        border: 2px dashed #cbd5e1;
+        border-radius: 16px;
+        padding: 30px;
+    }
+    div[data-testid="stFileUploader"] section:hover {
+        border-color: #7c3aed;
+        background-color: #f3f0ff;
+    }
+
+    /* Inputs (Champs texte) */
+    .stTextInput input {
         border-radius: 10px;
+        border: 1px solid #e2e8f0;
+        padding: 10px;
     }
+    .stTextInput input:focus {
+        border-color: #7c3aed;
+        box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.2);
+    }
+    
+    /* Expander (Cadres pliables) */
+    .streamlit-expanderHeader {
+        background-color: white;
+        border-radius: 10px;
+        font-weight: 600;
+    }
+    
+    /* Cacher le menu hamburger Streamlit et le footer */
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
     </style>
 """, unsafe_allow_html=True)
 
-# --- ETAT DE LA SESSION ---
+# --- 3. CONFIGURATION N8N (LIENS) ---
+WEBHOOK_URL_DEVIS = "https://n8n.srv1159353.hstgr.cloud/webhook/c8f039e9-89af-4d1a-b378-8e77a0a348b0"
+WEBHOOK_URL_VEILLE = ""
+
+# --- 4. GESTION DU LOGIN ---
 if 'logged_in' not in st.session_state:
     st.session_state['logged_in'] = False
 
-# --- ECRAN DE LOGIN ---
 if not st.session_state['logged_in']:
-    col1, col2, col3 = st.columns([1,2,1])
+    col1, col2, col3 = st.columns([1,1.5,1])
     with col2:
         st.write("")
         st.write("")
-        st.markdown("<h2 style='text-align: center;'>Excelia Agence</h2>", unsafe_allow_html=True)
-        st.markdown("<p style='text-align: center; color: gray;'>Portail IA & BTP</p>", unsafe_allow_html=True)
-        
-        with st.form("login_form"):
-            st.text_input("Identifiant", value="Entreprise BTP Demo")
-            st.text_input("Mot de passe", type="password", value="********")
-            submit = st.form_submit_button("Se connecter", use_container_width=True)
+        st.write("")
+        # Carte de login
+        with st.container():
+            st.markdown("""
+            <div style='background-color: white; padding: 40px; border-radius: 20px; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1); text-align: center; border: 1px solid #e2e8f0;'>
+                <h1 style='color: #7c3aed; margin-bottom: 0;'>Excelia.</h1>
+                <p style='color: #64748b; margin-top: 10px;'>Portail Intelligence Artificielle BTP</p>
+            </div>
+            """, unsafe_allow_html=True)
+            st.write("")
             
-            if submit:
-                st.session_state['logged_in'] = True
-                st.rerun()
+            with st.form("login_form"):
+                st.text_input("Identifiant", value="Entreprise Demo")
+                st.text_input("Mot de passe", type="password", value="********")
+                st.write("")
+                submit = st.form_submit_button("Se connecter au portail")
+                
+                if submit:
+                    st.session_state['logged_in'] = True
+                    st.rerun()
     st.stop()
 
-# --- SIDEBAR ---
+# --- 5. SIDEBAR (MENU) ---
 with st.sidebar:
     st.title("Excelia.")
-    st.markdown("---")
-    st.caption("AGENTS INTELLIGENTS")
+    st.caption("v1.0 • BÊTA PRIVÉE")
+    st.write("")
     
     choix_agent = st.radio(
-        "Navigation",
-        ["📝 Chiffrage & Devis", "🔍 Veille Appels d'Offre"],
+        "AGENTS DISPONIBLES",
+        ["📝 Chiffrage & Devis", "🔍 Veille Stratégique"],
         label_visibility="collapsed"
     )
     
-    st.markdown("---")
-    col_u1, col_u2 = st.columns([1, 3])
-    with col_u1:
-        st.write("👤")
-    with col_u2:
-        st.write("**Client Demo**")
-        st.caption("Premium Account")
+    st.write("")
+    st.write("")
+    with st.container():
+        st.markdown("""
+        <div style='background-color: #f1f5f9; padding: 15px; border-radius: 10px;'>
+            <small style='color: #64748b; font-weight: bold;'>COMPTE ACTIF</small><br>
+            <strong>Client Demo SAS</strong><br>
+            <span style='color: #10b981; font-size: 12px;'>● En ligne</span>
+        </div>
+        """, unsafe_allow_html=True)
         
-    if st.button("Déconnexion", use_container_width=True):
+    st.write("")
+    if st.button("Se déconnecter"):
         st.session_state['logged_in'] = False
         st.rerun()
 
-# --- PAGE: AGENT DEVIS ---
+# --- 6. AGENT CHIFFRAGE ---
 if choix_agent == "📝 Chiffrage & Devis":
-    col_h1, col_h2 = st.columns([3, 1])
-    with col_h1:
-        st.title("Chiffrage & Devis")
-        st.markdown("Remplissez les infos et déposez vos plans. **L'IA s'occupe du reste.**")
-    with col_h2:
-        st.success("Agent v2.1 • Online")
+    # En-tête avec badge
+    col_t1, col_t2 = st.columns([3, 1])
+    with col_t1:
+        st.title("Chiffrage Automatique")
+        st.markdown("Transformez vos plans en devis détaillés en quelques secondes.")
+    with col_t2:
+        st.markdown("""
+        <div style='text-align: right; padding-top: 20px;'>
+            <span style='background-color: #dbeafe; color: #1e40af; padding: 5px 10px; border-radius: 20px; font-size: 12px; font-weight: bold;'>IA GEN-2 READY</span>
+        </div>
+        """, unsafe_allow_html=True)
 
     st.write("")
-
-    # --- NOUVEAU FORMULAIRE CLIENT (Style GHL) ---
-    with st.expander("📋 Informations du Chantier & Client", expanded=True):
-        col_f1, col_f2 = st.columns(2)
-        
-        with col_f1:
-            st.subheader("Contact")
+    
+    # Formulaire dans un cadre propre
+    with st.expander("👤 Informations du Client (Requis pour le devis)", expanded=True):
+        c1, c2 = st.columns(2)
+        with c1:
             prenom = st.text_input("Prénom")
             nom = st.text_input("Nom")
-            email = st.text_input("Email *")
-            telephone = st.text_input("Téléphone *")
-            
-        with col_f2:
-            st.subheader("Adresse du projet")
-            adresse = st.text_input("Adresse postale")
-            ville = st.text_input("Ville")
-            code_postal = st.text_input("Code Postal")
+            email = st.text_input("Email pro *")
+        with c2:
+            telephone = st.text_input("Téléphone mobile *")
+            adresse = st.text_input("Adresse du chantier")
+            ville = st.text_input("Ville & CP")
             pays = st.text_input("Pays", value="France")
 
     st.write("")
-
-    uploaded_file = st.file_uploader("Glissez votre plan PDF ici (Plan Maison)", type=['pdf', 'png', 'dwg'])
+    st.markdown("### 📂 Déposez votre plan")
+    uploaded_file = st.file_uploader("", type=['pdf', 'png', 'jpg'], help="L'IA analyse mieux les PDF vectoriels originaux.")
 
     if uploaded_file:
-        st.info("Fichier reçu. Prêt pour l'analyse.")
+        st.success("✅ Fichier prêt à l'envoi !")
         
-        # Petit check pour encourager à remplir les champs
-        if not email or not telephone:
-            st.warning("⚠️ Pensez à remplir l'Email et le Téléphone pour que le devis soit complet.")
-
-        if st.button("Lancer l'analyse IA", use_container_width=True):
-            
-            # 1. SI AUCUN WEBHOOK N'EST CONFIGURÉ (Mode Simulation)
-            if not WEBHOOK_URL_DEVIS:
-                with st.spinner("Mode Démo : Simulation de l'analyse..."):
-                    time.sleep(2.5)
-                st.balloons()
-                st.success(f"Devis généré pour {prenom} {nom} !")
-                
-                # Fausses données pour la démo
-                data = {
-                    "Lot": ["Peinture", "Sol", "Elec"],
-                    "Désignation": ["Murs et Plafonds (RDC)", "Parquet Flottant Chêne", "Remise aux normes TGBT"],
-                    "Surface": ["120 m²", "85 m²", "1 u"],
-                    "Prix Est.": ["2 400 €", "4 500 €", "1 500 €"]
-                }
-                st.table(pd.DataFrame(data))
-                st.markdown("**Total HT: 8 400 €**")
-                st.warning("⚠️ Ceci est une simulation. Ajoutez votre lien Webhook N8N dans le code.")
-
-            # 2. SI LE WEBHOOK EST CONFIGURÉ (Mode Réel)
-            else:
-                with st.spinner("Envoi du dossier complet à l'IA Excelia (N8N)..."):
-                    try:
-                        # Préparation du fichier
-                        files = {'file': (uploaded_file.name, uploaded_file, uploaded_file.type)}
-                        
-                        # Préparation des données du formulaire
-                        form_data = {
-                            'prenom': prenom,
-                            'nom': nom,
-                            'email': email,
-                            'telephone': telephone,
-                            'adresse': adresse,
-                            'ville': ville,
-                            'code_postal': code_postal,
-                            'pays': pays
-                        }
-                        
-                        # Envoi à N8N (Fichier + Données)
-                        response = requests.post(WEBHOOK_URL_DEVIS, files=files, data=form_data)
-                        
-                        if response.status_code == 200:
-                            st.balloons()
-                            st.success("Analyse réelle terminée !")
+        col_btn1, col_btn2 = st.columns([1, 2])
+        with col_btn1:
+            if st.button("🚀 Lancer l'analyse IA"):
+                if not WEBHOOK_URL_DEVIS:
+                     st.error("⚠️ URL Webhook non configurée.")
+                elif not email:
+                     st.warning("⚠️ L'email est obligatoire.")
+                else:
+                    with st.spinner("🤖 L'IA Excelia analyse les pièces et matériaux..."):
+                        try:
+                            # Préparation payload
+                            files = {'file': (uploaded_file.name, uploaded_file, uploaded_file.type)}
+                            form_data = {
+                                'first_name': prenom, 'last_name': nom,
+                                'email': email, 'phone': telephone,
+                                'address': adresse, 'city': ville, 'country': pays
+                            }
+                            # Envoi
+                            r = requests.post(WEBHOOK_URL_DEVIS, files=files, data=form_data)
                             
-                            # On s'attend à ce que N8N renvoie du JSON
-                            result = response.json()
-                            
-                            if 'data' in result:
-                                st.table(pd.DataFrame(result['data']))
-                            
-                            if 'pdf_url' in result:
-                                st.markdown(f"[📥 Télécharger le Devis PDF]({result['pdf_url']})")
-                            
-                        else:
-                            st.error(f"Erreur IA : {response.status_code}")
-                            
-                    except Exception as e:
-                        st.error(f"Erreur de connexion : {e}")
+                            if r.status_code == 200:
+                                st.balloons()
+                                res = r.json()
+                                st.markdown("### 📊 Résultat de l'analyse")
+                                
+                                # Si PDF généré
+                                if 'pdf_url' in res:
+                                    st.markdown(f"""
+                                    <a href="{res['pdf_url']}" target="_blank" style="text-decoration: none;">
+                                        <div style="background-color: #ecfdf5; border: 1px solid #10b981; color: #065f46; padding: 15px; border-radius: 10px; text-align: center; font-weight: bold;">
+                                            📥 Télécharger le Devis Officiel (PDF)
+                                        </div>
+                                    </a>
+                                    """, unsafe_allow_html=True)
+                                
+                                # Si données tabulaires
+                                if 'data' in res:
+                                    st.dataframe(pd.DataFrame(res['data']), use_container_width=True)
+                            else:
+                                st.error(f"Erreur IA ({r.status_code}) : {r.text}")
+                        except Exception as e:
+                            st.error(f"Erreur de connexion : {e}")
 
-
-# --- PAGE: AGENT APPELS D'OFFRE ---
-elif choix_agent == "🔍 Veille Appels d'Offre":
-    col_h1, col_h2 = st.columns([3, 1])
-    with col_h1:
-        st.title("Veille Stratégique")
-        st.markdown("Les meilleures opportunités filtrées par IA.")
-    with col_h2:
-        if st.button("🔄 Synchro (08:00)"):
-            st.toast("Actualisation en cours...")
-            # Ici, tu pourras ajouter requests.get(WEBHOOK_URL_VEILLE) plus tard
-
-    kpi1, kpi2, kpi3 = st.columns(3)
-    kpi1.metric("Opportunités du jour", "12", "+2 New")
-    kpi2.metric("Budget Moyen", "840k €", "Stable")
-    kpi3.metric("Cibles Actives", "Île-de-France", "Gros Œuvre")
-
-    st.markdown("---")
-
-    st.subheader("Marchés détectés")
+# --- 7. AGENT VEILLE ---
+elif choix_agent == "🔍 Veille Stratégique":
+    st.title("Veille Appels d'Offre")
+    st.markdown("Opportunités détectées ce matin selon vos critères `Gros Œuvre` en `Île-de-France`.")
+    st.write("")
     
-    # Données simulées par défaut
-    df_offres = pd.DataFrame([
-        {"Titre": "Rénovation École Victor Hugo", "Lieu": "Paris 12e", "Budget": "450k €", "Date": "01 Juil", "Urgent": False},
-        {"Titre": "Construction Immeuble R+4", "Lieu": "Lyon (69)", "Budget": "2.1M €", "Date": "15 Août", "Urgent": False},
-        {"Titre": "Réfection Toiture Mairie", "Lieu": "Bordeaux (33)", "Budget": "80k €", "Date": "Demain", "Urgent": True},
-        {"Titre": "Extension Gymnase", "Lieu": "Nantes (44)", "Budget": "320k €", "Date": "20 Juil", "Urgent": False},
+    # 3 KPIs style "Cards"
+    k1, k2, k3 = st.columns(3)
+    k1.metric("Offres Détectées", "14", "+3 ce matin")
+    k2.metric("Budget Moyen", "840 k€", "Stable")
+    k3.metric("Taux de pertinence", "94%", "High")
+    
+    st.write("")
+    st.markdown("### 📋 Dernières opportunités")
+    
+    # Tableau propre
+    df = pd.DataFrame([
+        {"Marché": "Rénovation Groupe Scolaire", "Lieu": "Paris 15", "Budget": "450k €", "Urgence": "🔥 Haute"},
+        {"Marché": "Construction 24 Logements", "Lieu": "Massy (91)", "Budget": "2.1M €", "Urgence": "Moyenne"},
+        {"Marché": "Réfection Toiture Mairie", "Lieu": "Versailles", "Budget": "85k €", "Urgence": "Faible"},
     ])
-
+    
     st.dataframe(
-        df_offres,
+        df, 
+        use_container_width=True, 
+        hide_index=True,
         column_config={
-            "Urgent": st.column_config.CheckboxColumn(
-                "Urgent",
-                help="Marchés à traiter en priorité",
-                default=False,
-            ),
-        },
-        use_container_width=True,
-        hide_index=True
+            "Urgence": st.column_config.TextColumn(
+                "Priorité",
+                help="Calculé par l'IA selon vos délais"
+            )
+        }
     )
+    
+    st.write("")
+    if st.button("🔄 Forcer une actualisation manuelle"):
+        st.toast("Lancement du scraper N8N...")
